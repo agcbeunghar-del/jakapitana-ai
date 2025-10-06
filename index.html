@@ -1,32 +1,878 @@
-<!-- index.html (disingkat di sini) -->
-<script>
-async function generateImageWithNanoBanana(modelBase64Data, modelMimeType, posePrompt, backgroundPrompt, outfitChangePrompt) {
-  const clothingInstruction = outfitChangePrompt
-    ? `Change the subject's clothing to fit the theme: '${outfitChangePrompt}'. Preserve the subject's original facial features.`
-    : `Preserve the subject's original features (face, clothing).`;
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF--8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JAKAPITANA STUDIO AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            border-left-color: #4f46e5;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        .card-loader {
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-left-color: #a5b4fc;
+            width: 40px;
+            height: 40px;
+        }
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        .step-card {
+            background-color: rgba(15, 23, 42, 0.5); /* bg-slate-900/50 */
+            border: 1px solid rgb(51 65 85); /* border-slate-700 */
+            border-radius: 1rem; /* rounded-xl */
+            padding: 1.5rem; /* p-6 */
+        }
+        .theme-btn {
+            transition: all 0.2s ease-in-out;
+            border: 2px solid transparent;
+        }
+        .theme-btn.active {
+            border-color: #6366f1; /* border-indigo-500 */
+            background-color: rgba(79, 70, 229, 0.2); /* bg-indigo-500/20 */
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2);
+        }
+        textarea:focus {
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5);
+            border-color: #6366f1;
+            outline: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
 
-  const fullPrompt = `Your task is to create a seamless, photorealistic composite. Take the subject from the provided image. Change the subject's pose to: '${posePrompt}'. Now, place this modified subject into a newly generated background described as: '${backgroundPrompt}'. Realistically scale and position the subject to fit the perspective and depth of the background scene. Intelligently adjust the lighting, highlights, and color grading on the subject to perfectly match the environment. Generate a soft, realistic shadow cast by the subject onto the background, consistent with the scene's light sources. ${clothingInstruction} The final output must be a single, cohesive image, indistinguishable from a real photograph. Output only the final image.`;
+    <div class="bg-slate-800 rounded-2xl shadow-2xl p-6 md:p-10 w-full max-w-7xl border border-slate-700">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">JAKAPITANA STUDIO AI</h1>
+            <p class="text-slate-400 mt-2">Buat foto produk profesional dalam tiga langkah mudah.</p>
+        </div>
 
-  const apiUrl = "/api/generate";
+        <!-- Error Message -->
+        <div id="errorContainer" class="hidden bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative mb-6" role="alert">
+            <strong class="font-bold">Oops! </strong>
+            <span class="block sm:inline" id="errorMessage">Terjadi kesalahan.</span>
+        </div>
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      modelBase64Data,
-      modelMimeType,
-      fullPrompt
-    }),
-  });
+        <div class="flex flex-col gap-6">
+            <!-- Step 1: Model Upload -->
+            <div class="step-card">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="flex-shrink-0 bg-indigo-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg">1</div>
+                    <div>
+                        <h3 class="font-bold text-xl text-white">Unggah Foto Model</h3>
+                        <p class="text-slate-400 text-sm">Pilih gambar utama yang ingin Anda ubah posenya.</p>
+                    </div>
+                </div>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <div id="uploadArea" class="md:col-span-2 bg-slate-800/50 border-2 border-dashed border-slate-600 rounded-xl p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors h-full flex flex-col justify-center items-center">
+                        <label for="imageUpload" class="cursor-pointer">
+                            <div class="flex flex-col items-center justify-center">
+                                <i data-lucide="user-scan" class="w-12 h-12 text-slate-500 mb-3"></i>
+                                <p class="font-semibold text-base">Klik atau seret gambar model</p>
+                                <p class="text-xs text-slate-500 mt-1">PNG, JPG, WEBP (Maks. 5MB)</p>
+                            </div>
+                            <input type="file" id="imageUpload" class="hidden" accept="image/png, image/jpeg, image/webp">
+                        </label>
+                    </div>
+                    <div id="previewContainer" class="hidden text-center bg-slate-800/50 p-4 rounded-xl">
+                        <p class="text-sm font-semibold mb-2">Pratinjau Model:</p>
+                        <div class="relative inline-block border-2 border-slate-600 rounded-xl p-1 bg-slate-900/50">
+                            <img id="imagePreview" src="" alt="Pratinjau Model" class="max-h-28 w-auto rounded-lg mx-auto">
+                        </div>
+                        <p id="fileName" class="text-xs text-slate-400 mt-2 break-all"></p>
+                    </div>
+                </div>
+            </div>
 
-  if (!response.ok) throw new Error(`Gagal memproses gambar: ${response.statusText}`);
-  
-  const result = await response.json();
-  const candidate = result.candidates?.[0];
-  const base64Data = candidate?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+            <!-- Step 2: Select Background Theme -->
+            <div class="step-card">
+                 <div class="flex items-center gap-4 mb-4">
+                    <div class="flex-shrink-0 bg-indigo-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg">2</div>
+                    <div>
+                        <h3 class="font-bold text-xl text-white">Pilih Tema Latar Belakang</h3>
+                        <p class="text-slate-400 text-sm">Pilih tema atau tulis prompt manual Anda sendiri.</p>
+                    </div>
+                </div>
+                <div id="themeSelection" class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-9 gap-3">
+                    <button data-theme="Minimalist & Japandi" class="theme-btn active flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="home" class="w-7 h-7 mb-1.5 text-indigo-400"></i>
+                        <span class="text-xs font-semibold text-center">Minimalist</span>
+                    </button>
+                    <button data-theme="Nature & Outdoor" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="leaf" class="w-7 h-7 mb-1.5 text-green-400"></i>
+                        <span class="text-xs font-semibold text-center">Nature</span>
+                    </button>
+                    <button data-theme="Café & Urban" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="coffee" class="w-7 h-7 mb-1.5 text-amber-400"></i>
+                        <span class="text-xs font-semibold text-center">Café</span>
+                    </button>
+                     <button data-theme="Modern Architecture" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="building-2" class="w-7 h-7 mb-1.5 text-sky-400"></i>
+                        <span class="text-xs font-semibold text-center">Modern</span>
+                    </button>
+                    <button data-theme="Artsy & Creative" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="palette" class="w-7 h-7 mb-1.5 text-pink-400"></i>
+                        <span class="text-xs font-semibold text-center">Artsy</span>
+                    </button>
+                    <button data-theme="Cars" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="car" class="w-7 h-7 mb-1.5 text-red-400"></i>
+                        <span class="text-xs font-semibold text-center">Cars</span>
+                    </button>
+                    <button data-theme="Historic Islamic Architectures" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="palace" class="w-7 h-7 mb-1.5 text-orange-400"></i>
+                        <span class="text-xs font-semibold text-center">Islamic</span>
+                    </button>
+                    <button data-theme="European Architectures" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="landmark" class="w-7 h-7 mb-1.5 text-yellow-400"></i>
+                        <span class="text-xs font-semibold text-center">European</span>
+                    </button>
+                    <button data-theme="Fantasy World" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="wand-2" class="w-7 h-7 mb-1.5 text-purple-400"></i>
+                        <span class="text-xs font-semibold text-center">Fantasy</span>
+                    </button>
+                    <button data-theme="East Asian Architectures" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="temple" class="w-7 h-7 mb-1.5 text-teal-400"></i>
+                        <span class="text-xs font-semibold text-center">East Asian</span>
+                    </button>
+                    <button data-theme="Luxurious Lifestyle" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="gem" class="w-7 h-7 mb-1.5 text-cyan-400"></i>
+                        <span class="text-xs font-semibold text-center">Luxury</span>
+                    </button>
+                    <button data-theme="1960s Sci-Fi" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="rocket" class="w-7 h-7 mb-1.5 text-slate-400"></i>
+                        <span class="text-xs font-semibold text-center">60s Sci-Fi</span>
+                    </button>
+                    <button data-theme="Mountain & Adventure" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="mountain" class="w-7 h-7 mb-1.5 text-lime-400"></i>
+                        <span class="text-xs font-semibold text-center">Mountain</span>
+                    </button>
+                    <button data-theme="Cyberpunk City" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="gamepad-2" class="w-7 h-7 mb-1.5 text-cyan-300"></i>
+                        <span class="text-xs font-semibold text-center">Cyberpunk</span>
+                    </button>
+                     <button data-theme="Underwater World" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="fish" class="w-7 h-7 mb-1.5 text-blue-400"></i>
+                        <span class="text-xs font-semibold text-center">Underwater</span>
+                    </button>
+                    <button data-theme="Desert Landscape" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="sun" class="w-7 h-7 mb-1.5 text-orange-300"></i>
+                        <span class="text-xs font-semibold text-center">Desert</span>
+                    </button>
+                    <button data-theme="Custom" class="theme-btn flex flex-col items-center justify-center p-3 bg-slate-800/50 rounded-lg aspect-square">
+                        <i data-lucide="pencil" class="w-7 h-7 mb-1.5 text-gray-300"></i>
+                        <span class="text-xs font-semibold text-center">Manual</span>
+                    </button>
+                </div>
+                <div id="customPromptContainer" class="hidden mt-4">
+                    <label for="customPromptInput" class="block mb-2 text-sm font-medium text-slate-300">Prompt Latar Belakang Manual</label>
+                    <textarea id="customPromptInput" rows="3" class="w-full bg-slate-900/50 border border-slate-600 rounded-lg p-3 text-sm text-slate-200 placeholder-slate-500 transition-colors" placeholder="Tulis deskripsi latar belakang Anda di sini... contoh: 'sebuah pantai tropis saat matahari terbenam dengan pasir putih dan pohon kelapa'"></textarea>
+                </div>
+                <div class="mt-4 pt-4 border-t border-slate-700/50">
+                    <label for="adjustOutfitCheckbox" class="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" id="adjustOutfitCheckbox" class="w-5 h-5 bg-slate-900 border-slate-600 text-indigo-500 rounded focus:ring-indigo-600 focus:ring-2">
+                        <div>
+                            <span class="font-semibold text-slate-200">Sesuaikan Outfit dengan Tema</span>
+                            <p class="text-xs text-slate-400">Biarkan AI mengganti pakaian model agar cocok dengan latar belakang.</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
 
-  if (!base64Data) throw new Error("Tidak ada data gambar dari API.");
-  return base64Data;
-}
-</script>
-...
+            <!-- Step 3: Generate -->
+            <div class="step-card text-center">
+                <div class="flex items-center gap-4 mb-4 justify-center">
+                    <div class="flex-shrink-0 bg-indigo-600 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg">3</div>
+                    <h3 class="font-bold text-xl text-white">Hasilkan Gambar</h3>
+                </div>
+                 <p class="text-slate-400 text-sm mb-5 max-w-md mx-auto">AI akan menerapkan sudut kamera acak pada 9 pose dasar untuk menciptakan hasil yang dinamis dan bervariasi.</p>
+                <button id="generateBtn" disabled class="bg-indigo-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-indigo-700 transition-all disabled:bg-slate-700 disabled:cursor-not-allowed disabled:text-slate-400 shadow-lg shadow-indigo-600/20">
+                    <span class="flex items-center justify-center">
+                        <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
+                        Buat 9 Pose & Angle Acak
+                    </span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Results Section -->
+        <div id="resultsContainer" class="hidden mt-10">
+            <h2 class="text-2xl font-bold text-center mb-6">Hasil Pose Sedang Disiapkan...</h2>
+            <div id="resultsGrid" class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                <!-- Generated images will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Generation Modal -->
+    <div id="videoModal" class="hidden fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <div class="mx-auto bg-teal-600/20 text-teal-400 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                <i data-lucide="video" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-bold mb-2">Fitur Segera Hadir!</h3>
+            <p class="text-slate-400 text-sm mb-6">
+                Integrasi dengan Google Veo untuk mengubah gambar menjadi video sedang dalam pengembangan. Fitur canggih ini akan tersedia setelah API publiknya dirilis. Nantikan pembaruan selanjutnya!
+            </p>
+            <button id="closeVideoModalBtn" class="bg-slate-600 w-full text-white font-semibold py-2 px-4 rounded-lg hover:bg-slate-500 transition-colors">
+                Tutup
+            </button>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM Elements
+        const uploadArea = document.getElementById('uploadArea');
+        const imageUpload = document.getElementById('imageUpload');
+        const previewContainer = document.getElementById('previewContainer');
+        const imagePreview = document.getElementById('imagePreview');
+        const fileName = document.getElementById('fileName');
+        
+        const generateBtn = document.getElementById('generateBtn');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const resultsGrid = document.getElementById('resultsGrid');
+        const errorContainer = document.getElementById('errorContainer');
+        const errorMessage = document.getElementById('errorMessage');
+
+        const videoModal = document.getElementById('videoModal');
+        const closeVideoModalBtn = document.getElementById('closeVideoModalBtn');
+        const themeSelection = document.getElementById('themeSelection');
+        const customPromptContainer = document.getElementById('customPromptContainer');
+        const customPromptInput = document.getElementById('customPromptInput');
+
+        let uploadedFileAsDataUrl = null;
+        let selectedTheme = 'Minimalist & Japandi';
+
+        // --- Database Pose, Sudut Kamera, & Latar Belakang ---
+        const basePoses = [
+            { name: 'Neutral Pose', prompt: 'standing naturally with relaxed shoulders, body facing forward, direct eye contact' },
+            { name: 'Chin Pose', prompt: 'one hand gently resting on chin, head slightly tilted, soft smile' },
+            { name: 'Power Pose', prompt: 'upright posture, shoulders back, hands on hips, confident look' },
+            { name: 'Over-the-Shoulder Pose', prompt: 'body turned slightly sideways, looking back over shoulder with gentle smile' },
+            { name: 'Crossed Arms Pose', prompt: 'arms folded across chest, serious confident expression' },
+            { name: 'Cheek-Cover Pose', prompt: 'both hands gently covering cheeks in playful style' },
+            { name: 'Hand-on-Collar Pose', prompt: 'one hand holding shirt or jacket collar, stylish confident look' },
+            { name: 'Hands-Clasped Pose', prompt: 'both hands clasped in front of body, relaxed shoulders, professional approachable smile' },
+            { name: 'Side Profile Pose', prompt: 'body turned to the side in profile view, head slightly turned towards camera with calm elegant expression' }
+        ];
+
+        const cameraAngles = [
+            { name: 'Full Body', prompt: 'A full body shot, showing the subject from head to toe.' },
+            { name: 'Medium Close Up', prompt: 'A medium close-up shot from the chest up.' },
+            { name: 'High Angle', prompt: 'A high-angle shot, with the camera positioned above the subject and looking down.' },
+            { name: 'Worm Eye View', prompt: 'A worm-eye view, with the camera placed very low to the ground and looking up.' },
+            { name: 'Dutch Angle', prompt: 'A Dutch angle shot, where the camera is tilted.' },
+            { name: 'Extreme Low Angle', prompt: 'An extreme low-angle shot, very close to the subject from below.' },
+            { name: 'Side Profile', prompt: 'A side profile shot, capturing the subject from the side.' },
+            { name: 'Eye Level', prompt: 'An eye-level shot, with the camera at the same height as the subject\'s eyes.' },
+            { name: '3/4 View', prompt: 'A 3/4 view, with the subject\'s body turned about 45 degrees away from the camera.' },
+            { name: 'From Back', prompt: 'A shot from the back.' },
+            { name: 'Over The Shoulder', prompt: 'An over-the-shoulder shot, positioned behind the subject.' },
+            { name: 'Bird\'s-Eye View', prompt: 'A bird\'s-eye view, with the camera high above.' },
+            { name: 'Slight Overhead', prompt: 'A slight overhead shot, with the camera just above eye level.' }
+        ];
+
+        // Background Prompts Database
+        const backgroundPrompts = [
+            // Minimalist & Japandi
+            { theme: 'Minimalist & Japandi', prompt: 'a clean, plain white wall with soft, natural light casting gentle shadows.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a wall with light-colored wooden panels, like birch or oak, creating a warm, minimal backdrop.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a light gray, textured concrete wall, giving a modern, industrial-chic feel.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a Japandi-style wooden shelf with a single white ceramic vase.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a cozy corner with a cream-colored linen sofa and a simple wooden coffee table.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a corner of a room featuring an elegant rattan chair and a small plant.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a large glass sliding door with thin, white, translucent curtains.' },
+            { theme: 'Minimalist & Japandi', prompt: 'light wood parquet flooring with a fluffy white rug.' },
+            { theme: 'Minimalist & Japandi', prompt: 'a tatami mat floor with a Japanese-style paper floor lamp in the corner.' },
+            { theme: 'Minimalist & Japandi', prompt: 'an indoor garden corner with minimalist green plants in simple pots.' },
+            // Nature & Outdoor
+            { theme: 'Nature & Outdoor', prompt: 'a beautiful garden of pastel flowers like lavender, sakura, and peonies.' },
+            { theme: 'Nature & Outdoor', prompt: 'a lush green meadow under a bright blue sky with fluffy clouds.' },
+            { theme: 'Nature & Outdoor', prompt: 'a white sandy beach with the ocean horizon in the background.' },
+            { theme: 'Nature & Outdoor', prompt: 'a pine forest with sunlight filtering through the trees.' },
+            { theme: 'Nature & Outdoor', prompt: 'a neat garden path lined with manicured trees.' },
+            { theme: 'Nature & Outdoor', prompt: 'a modern garden with minimalist concrete planters.' },
+            { theme: 'Nature & Outdoor', prompt: 'a rooftop balcony filled with various ornamental plants.' },
+            { theme: 'Nature & Outdoor', prompt: 'a wall completely covered in green climbing ivy.' },
+            { theme: 'Nature & Outdoor', prompt: 'a field of soft-colored wildflowers.' },
+            { theme: 'Nature & Outdoor', prompt: 'a serene Japanese-style bamboo garden.' },
+            // Café & Urban
+            { theme: 'Café & Urban', prompt: 'a modern café interior with wooden furniture and warm pendant lights.' },
+            { theme: 'Café & Urban', prompt: 'an aesthetic coffee shop with a bright neon sign on the wall.' },
+            { theme: 'Café & Urban', prompt: 'a white marble table with a cappuccino featuring latte art.' },
+            { theme: 'Café & Urban', prompt: 'high bar stools against a clean white brick wall backdrop.' },
+            { theme: 'Café & Urban', prompt: 'a cozy book café with shelves full of books.' },
+            { theme: 'Café & Urban', prompt: 'a Parisian outdoor café with round rattan chairs.' },
+            { theme: 'Café & Urban', prompt: 'an industrial-style café with exposed black iron pipes on the ceiling.' },
+            { theme: 'Café & Urban', prompt: 'a coffee counter with a modern, sleek espresso machine.' },
+            { theme: 'Café & Urban', prompt: 'a large window in a café with golden afternoon light streaming in.' },
+            { theme: 'Café & Urban', prompt: 'a wall painted sage green with a small wooden table in front.' },
+            // Modern Architecture
+            { theme: 'Modern Architecture', prompt: 'a modern glass building with blue sky reflections.' },
+            { theme: 'Modern Architecture', prompt: 'a minimalist, white spiral staircase.' },
+            { theme: 'Modern Architecture', prompt: 'a spacious hall with a glossy marble floor reflecting the lights.' },
+            { theme: 'Modern Architecture', prompt: 'a minimalist hotel corridor with warm, ambient lighting.' },
+            { theme: 'Modern Architecture', prompt: 'a rooftop with a stunning city view at night.' },
+            { theme: 'Modern Architecture', prompt: 'a futuristic, metallic silver wall.' },
+            { theme: 'Modern Architecture', prompt: 'a modern office lobby decorated with large indoor plants.' },
+            { theme: 'Modern Architecture', prompt: 'a city street at night with glowing neon signs, Tokyo-style.' },
+            { theme: 'Modern Architecture', prompt: 'a rooftop parking lot with the city skyline in the background.' },
+            { theme: 'Modern Architecture', prompt: 'a mall escalator with futuristic architectural design.' },
+            // Artsy & Creative
+            { theme: 'Artsy & Creative', prompt: 'a photo studio with a seamless pastel-colored fabric background.' },
+            { theme: 'Artsy & Creative', prompt: 'a modern art gallery with abstract paintings on the walls.' },
+            { theme: 'Artsy & Creative', prompt: 'geometric neon light shapes in pink and blue against a dark wall.' },
+            { theme: 'Artsy & Creative', prompt: 'a large, ornate gold-framed mirror leaning against a wall.' },
+            { theme: 'Artsy & Creative', prompt: 'an aesthetic play of light and shadows projected onto a wall.' },
+            { theme: 'Artsy & Creative', prompt: 'a studio with a soft-colored ombre backdrop.' },
+            { theme: 'Artsy & Creative', prompt: 'a Japandi art installation featuring stone, wood, and water elements.' },
+            { theme: 'Artsy & Creative', prompt: 'a wall with a minimalist floral mural.' },
+            { theme: 'Artsy & Creative', prompt: 'a setup with a classic French-style chair as a prop.' },
+            { theme: 'Artsy & Creative', prompt: 'a room with a modern crystal chandelier hanging from the ceiling.' },
+            // Cars
+            { theme: 'Cars', prompt: 'fashionably leaning against a classic 1960s Italian sports car on a winding mountain road.' },
+            { theme: 'Cars', prompt: 'driving a powerful American muscle car from the 70s through a gritty urban neighborhood at night.' },
+            { theme: 'Cars', prompt: 'posing next to a vintage English roadster from the 1930s parked on a sunny beach.' },
+            { theme: 'Cars', prompt: 'in a dimly lit workshop, interacting with a classic German touring car undergoing restoration.' },
+            { theme: 'Cars', prompt: 'sitting in the driver\'s seat of a sleek modern Japanese sports car inside a high-tech garage.' },
+            // Historic Islamic Architectures
+            { theme: 'Historic Islamic Architectures', prompt: 'standing in a sunlit Andalusian courtyard with intricate geometric tilework (azulejos) and a central marble fountain.' },
+            { theme: 'Historic Islamic Architectures', prompt: 'looking through a series of ornate horseshoe arches in a Hispano-Moorish palace corridor in Morocco.' },
+            { theme: 'Historic Islamic Architectures', prompt: 'in a lush Persian garden, with serene water channels and pavilions, set against a mountain backdrop.' },
+            { theme: 'Historic Islamic Architectures', prompt: 'on a balcony of a grand Mughal palace, overlooking the riverside at dawn.' },
+            { theme: 'Historic Islamic Architectures', prompt: 'walking through the grand interior of a Turkish sultan\'s palace, with opulent domes and calligraphy.' },
+            // European Architectures
+            { theme: 'European Architectures', prompt: 'in a classic Renaissance loggia in France, with repeating arches and columns, overlooking a manicured garden.' },
+            { theme: 'European Architectures', prompt: 'inside a grand Gothic cathedral in England, with light streaming through a large, colorful rose stained-glass window.' },
+            { theme: 'European Architectures', prompt: 'on the steps of a majestic Art Deco building in a bustling European city.' },
+            { theme: 'European Architectures', prompt: 'posing in front of a whimsical Art Nouveau facade in a historic Eastern European city.' },
+            { theme: 'European Architectures', prompt: 'standing before a rugged Scottish castle on a misty mountain.' },
+            // Fantasy World
+            { theme: 'Fantasy World', prompt: 'in the doorway of a charming hobbit-hole with a round green door, from J.R.R. Tolkien\'s world, set into a grassy hill in the Shire.' },
+            { theme: 'Fantasy World', prompt: 'on a lavish palace balcony from 1001 Arabian Nights, overlooking a bustling city of domes and minarets under a starry desert sky.' },
+            { theme: 'Fantasy World', prompt: 'in a snowy courtyard of a shimmering ice palace, inspired by a Hans Christian Andersen tale, with intricate frost patterns on the walls.' },
+            { theme: 'Fantasy World', prompt: 'on an enchanted, deep forest path from the Grimms\' tales, with sunlight filtering through a thick canopy of ancient, gnarled trees.' },
+            { theme: 'Fantasy World', prompt: 'standing on the bright Yellow Brick Road as it winds towards the glowing Emerald City from The Wizard of Oz.' },
+            // East Asian Architectures
+            { theme: 'East Asian Architectures', prompt: 'in front of a grand, multi-tiered ancient Chinese pagoda with ornate, curved eaves, set against a misty mountain landscape.' },
+            { theme: 'East Asian Architectures', prompt: 'in a serene Japanese Zen garden with raked white sand, carefully placed mossy rocks, and a single maple tree.' },
+            { theme: 'East Asian Architectures', prompt: 'walking through the courtyard of a classic Korean palace with intricate wooden structures and colorful dancheong paintwork.' },
+            { theme: 'East Asian Architectures', prompt: 'on a wooden veranda of a Japanese temple overlooking a peaceful koi pond.' },
+            { theme: 'East Asian Architectures', prompt: 'inside the Forbidden City in China, standing in a vast, imperial courtyard.' },
+            // Luxurious Lifestyle
+            { theme: 'Luxurious Lifestyle', prompt: 'on the deck of a luxurious modern yacht, sailing on a clear blue sea with a distant coastline.' },
+            { theme: 'Luxurious Lifestyle', prompt: 'stepping out of a sleek black limousine onto a red carpet in front of a grand hotel at night.' },
+            { theme: 'Luxurious Lifestyle', prompt: 'inside the lavish cabin of a private jet, with cream leather seats and a view of the clouds from the window.' },
+            { theme: 'Luxurious Lifestyle', prompt: 'posing fashionably beside a vintage propeller airplane on a private airfield.' },
+            { theme: 'Luxurious Lifestyle', prompt: 'enjoying a fancy dinner on a rooftop overlooking a glittering city.' },
+            // 1960s Sci-Fi
+            { theme: '1960s Sci-Fi', prompt: 'inside a retro-futuristic spaceship bridge from the 1960s, with large analog control panels, blinking lights, and a large viewport showing a swirling nebula.' },
+            { theme: '1960s Sci-Fi', prompt: 'on a surreal alien planet with bizarre, glowing geometric flora and two moons in a purple sky, in the style of 1960s sci-fi book cover art.' },
+            { theme: '1960s Sci-Fi', prompt: 'posing in front of a classic, silver, finned rocket ship on a launchpad, with gantry arms and billowing smoke.' },
+            { theme: '1960s Sci-Fi', prompt: 'casually leaning against a sleek, bubble-canopy flying car parked on a futuristic city street.' },
+            { theme: '1960s Sci-Fi', prompt: 'having a friendly, curious interaction with a classic gray alien next to its silver saucer UFO in a desert landscape.' },
+            // Mountain & Adventure
+            { theme: 'Mountain & Adventure', prompt: 'standing on a majestic mountain peak at sunrise, with a sea of clouds below.' },
+            { theme: 'Mountain & Adventure', prompt: 'in front of a serene, crystal-clear alpine lake, with snow-capped mountains in the distance.' },
+            { theme: 'Mountain & Adventure', prompt: 'on a wooden suspension bridge crossing a deep forest ravine.' },
+            { theme: 'Mountain & Adventure', prompt: 'beside a roaring waterfall in a lush, green valley.' },
+            { theme: 'Mountain & Adventure', prompt: 'looking out from a rustic cabin porch with a stunning mountain view.' },
+            // Cyberpunk City
+            { theme: 'Cyberpunk City', prompt: 'on a neon-lit street in a futuristic cyberpunk city, with flying vehicles and holographic advertisements in the background.' },
+            { theme: 'Cyberpunk City', prompt: 'looking out from a high-rise balcony overlooking a sprawling, neon-drenched metropolis at night.' },
+            { theme: 'Cyberpunk City', prompt: 'in a dark alleyway illuminated by the glow of vibrant neon signs and steam rising from vents.' },
+            { theme: 'Cyberpunk City', prompt: 'standing on a pedestrian overpass as futuristic traffic flows below.' },
+            { theme: 'Cyberpunk City', prompt: 'in front of a giant, glowing holographic billboard.' },
+            // Underwater World
+            { theme: 'Underwater World', prompt: 'swimming gracefully among vibrant coral reefs and schools of colorful tropical fish.' },
+            { theme: 'Underwater World', prompt: 'posing in front of the ruins of a sunken ancient city on the ocean floor.' },
+            { theme: 'Underwater World', prompt: 'inside a futuristic underwater observatory, looking out at majestic whales and sharks.' },
+            { theme: 'Underwater World', prompt: 'floating in a mystical underwater cave with light rays piercing through the water\'s surface.' },
+            { theme: 'Underwater World', prompt: 'surrounded by glowing jellyfish in the deep, dark ocean.' },
+            // Desert Landscape
+            { theme: 'Desert Landscape', prompt: 'standing on a vast, golden sand dune at sunset, with long shadows stretching across the desert.' },
+            { theme: 'Desert Landscape', prompt: 'in a dramatic desert landscape with towering rock formations, similar to Monument Valley.' },
+            { theme: 'Desert Landscape', prompt: 'at a lush oasis with palm trees and a small pool of water in the middle of a vast desert.' },
+            { theme: 'Desert Landscape', prompt: 'walking along a cracked, dry lake bed under a scorching sun.' },
+            { theme: 'Desert Landscape', prompt: 'posing with a camel against a backdrop of endless sand dunes.' }
+        ];
+
+        // --- New Outfit Prompts Database ---
+        const outfitPrompts = [
+            { theme: 'Minimalist & Japandi', prompt: 'simple and elegant neutral-colored linen clothing' },
+            { theme: 'Minimalist & Japandi', prompt: 'a chic, monochrome outfit with clean lines' },
+            { theme: 'Nature & Outdoor', prompt: 'casual outdoor wear, like a light jacket and comfortable pants' },
+            { theme: 'Nature & Outdoor', prompt: 'a stylish yet practical outfit for a walk in the park' },
+            { theme: 'Café & Urban', prompt: 'smart casual coffee shop attire, like a cozy sweater and jeans' },
+            { theme: 'Café & Urban', prompt: 'a trendy urban outfit, such as a stylish coat over a simple t-shirt' },
+            { theme: 'Modern Architecture', prompt: 'a sharp, modern, and sophisticated business casual outfit' },
+            { theme: 'Modern Architecture', prompt: 'a sleek, minimalist dress or suit' },
+            { theme: 'Artsy & Creative', prompt: 'a unique, artistic outfit with bold colors or patterns' },
+            { theme: 'Artsy & Creative', prompt: 'a bohemian-chic ensemble' },
+            { theme: 'Cars', prompt: 'a cool leather jacket with jeans, fitting for a road trip' },
+            { theme: 'Cars', prompt: 'a vintage-style racing jacket and casual trousers' },
+            { theme: 'Historic Islamic Architectures', prompt: 'an elegant, modest, and flowing kaftan or abaya' },
+            { theme: 'Historic Islamic Architectures', prompt: 'a sophisticated linen suit' },
+            { theme: 'European Architectures', prompt: 'a classic and timeless trench coat over a stylish outfit' },
+            { theme: 'European Architectures', prompt: 'a romantic and chic Parisian-style outfit' },
+            { theme: 'Fantasy World', prompt: 'an ethereal, fantasy-inspired gown or adventurer\'s tunic' },
+            { theme: 'Fantasy World', prompt: 'a magical, flowing robe with intricate details' },
+            { theme: 'East Asian Architectures', prompt: 'a modern interpretation of a traditional hanbok or kimono' },
+            { theme: 'East Asian Architectures', prompt: 'a stylish and minimalist outfit with an East Asian-inspired silhouette' },
+            { theme: 'Luxurious Lifestyle', prompt: 'a glamorous evening gown or a tailored tuxedo' },
+            { theme: 'Luxurious Lifestyle', prompt: 'a high-fashion designer outfit' },
+            { theme: '1960s Sci-Fi', prompt: 'a retro-futuristic silver jumpsuit or a mod-style dress' },
+            { theme: '1960s Sci-Fi', prompt: 'a space-age outfit with geometric patterns and metallic accents' },
+            { theme: 'Mountain & Adventure', prompt: 'practical and stylish hiking gear, like a fleece jacket and cargo pants' },
+            { theme: 'Mountain & Adventure', prompt: 'a cozy flannel shirt and durable boots' },
+            { theme: 'Cyberpunk City', prompt: 'a futuristic cyberpunk outfit with neon accents and high-tech gear' },
+            { theme: 'Cyberpunk City', prompt: 'a stylish trench coat with glowing elements, fit for a dystopian city' },
+            { theme: 'Underwater World', prompt: 'a beautiful, flowing mermaid-style gown' },
+            { theme: 'Underwater World', prompt: 'a futuristic diving suit with bioluminescent patterns' },
+            { theme: 'Desert Landscape', prompt: 'a lightweight, breathable linen outfit suitable for a desert expedition' },
+            { theme: 'Desert Landscape', prompt: 'a rugged, adventurer-style outfit with a wide-brimmed hat' }
+        ];
+
+        // --- Event Listeners ---
+        function setupUploadArea(area, input, handler) {
+            area.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                area.classList.add('border-indigo-500', 'bg-slate-700');
+            });
+            area.addEventListener('dragleave', () => area.classList.remove('border-indigo-500', 'bg-slate-700'));
+            area.addEventListener('drop', (e) => {
+                e.preventDefault();
+                area.classList.remove('border-indigo-500', 'bg-slate-700');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    input.files = files;
+                    handler({ target: input });
+                }
+            });
+            input.addEventListener('change', handler);
+        }
+        
+        setupUploadArea(uploadArea, imageUpload, handleFileSelect);
+        generateBtn.addEventListener('click', runImageGeneration);
+        closeVideoModalBtn.addEventListener('click', hideVideoModal);
+        videoModal.addEventListener('click', (e) => {
+            if (e.target === videoModal) {
+                hideVideoModal();
+            }
+        });
+        themeSelection.addEventListener('click', (e) => {
+            const button = e.target.closest('.theme-btn');
+            if (!button) return;
+
+            themeSelection.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            selectedTheme = button.dataset.theme;
+
+            if (selectedTheme === 'Custom') {
+                customPromptContainer.classList.remove('hidden');
+            } else {
+                customPromptContainer.classList.add('hidden');
+            }
+        });
+
+        // --- Functions ---
+        function showVideoModal() {
+            videoModal.classList.remove('hidden');
+        }
+
+        function hideVideoModal() {
+            videoModal.classList.add('hidden');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorContainer.classList.remove('hidden');
+        }
+
+        function hideError() {
+            errorContainer.classList.add('hidden');
+        }
+
+        function handleFileSelect(e) {
+             if (e.target.files[0]) {
+                hideError();
+                resultsContainer.classList.add('hidden');
+                resultsGrid.innerHTML = '';
+                const file = e.target.files[0];
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    uploadedFileAsDataUrl = event.target.result;
+                    imagePreview.src = event.target.result;
+                    fileName.textContent = file.name;
+                    previewContainer.classList.remove('hidden');
+                    uploadArea.classList.add('md:col-span-2');
+                    generateBtn.disabled = false;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        async function runImageGeneration() {
+            if (!uploadedFileAsDataUrl) {
+                showError("Silakan unggah gambar model terlebih dahulu.");
+                return;
+            }
+            
+            generateBtn.disabled = true;
+            generateBtn.querySelector('span').innerHTML = `<div class="loader" style="width: 20px; height: 20px; border-width: 2px;"></div> <span class="ml-2">Memproses...</span>`;
+            hideError();
+            resultsContainer.classList.remove('hidden');
+            resultsContainer.querySelector('h2').textContent = "AI sedang bekerja, mohon tunggu...";
+            resultsGrid.innerHTML = '';
+
+            const modelBase64Data = uploadedFileAsDataUrl.split(',')[1];
+            const modelMimeType = uploadedFileAsDataUrl.split(',')[0].split(':')[1].split(';')[0];
+            
+            const generationJobs = basePoses.map(basePose => {
+                const randomAngle = cameraAngles[Math.floor(Math.random() * cameraAngles.length)];
+                return {
+                    name: `${randomAngle.name} - ${basePose.name}`,
+                    prompt: `${randomAngle.prompt} The subject is doing this pose: ${basePose.prompt}`,
+                    cameraAngleName: randomAngle.name
+                };
+            });
+
+            const isCustomPrompt = selectedTheme === 'Custom';
+            const customPromptText = customPromptInput.value.trim();
+            const relevantBgs = backgroundPrompts.filter(bg => bg.theme === selectedTheme);
+            const adjustOutfit = document.getElementById('adjustOutfitCheckbox').checked;
+            const relevantOutfits = adjustOutfit ? outfitPrompts.filter(o => o.theme === selectedTheme) : [];
+
+            generationJobs.forEach((job, index) => {
+                let finalBackgroundPrompt;
+                if (isCustomPrompt) {
+                    finalBackgroundPrompt = customPromptText || 'a neutral studio background';
+                } else {
+                    const randomBg = relevantBgs.length > 0 ? relevantBgs[Math.floor(Math.random() * relevantBgs.length)] : { prompt: 'a neutral studio background' };
+                    finalBackgroundPrompt = randomBg.prompt;
+                }
+                
+                let outfitChangePrompt = null;
+                if(adjustOutfit && relevantOutfits.length > 0) {
+                    const randomOutfit = relevantOutfits[Math.floor(Math.random() * relevantOutfits.length)];
+                    outfitChangePrompt = randomOutfit.prompt;
+                }
+
+                const card = createCard(`loader-${index}`, job, finalBackgroundPrompt, outfitChangePrompt);
+                card.innerHTML = `
+                    <div class="w-full aspect-[3/4] flex items-center justify-center bg-slate-700/50">
+                        <div class="loader card-loader"></div>
+                    </div>
+                    <div class="p-3 text-center">
+                        <p class="text-sm font-semibold text-slate-300">${job.name}</p>
+                        <p class="text-xs text-slate-400">Membuat pose...</p>
+                    </div>`;
+                resultsGrid.appendChild(card);
+            });
+
+            const generationPromises = generationJobs.map((job, i) => {
+                return (async () => {
+                    const card = document.getElementById(`loader-${i}`);
+                    const backgroundPrompt = card.dataset.backgroundPrompt;
+                    const outfitPrompt = card.dataset.outfitPrompt;
+                    try {
+                        const generatedImageBase64 = await generateImageWithNanoBanana(modelBase64Data, modelMimeType, job.prompt, backgroundPrompt, outfitPrompt);
+                        const imageUrl = `data:image/png;base64,${generatedImageBase64}`;
+                        updateCardWithResult(`loader-${i}`, imageUrl, job, backgroundPrompt);
+                    } catch (err) {
+                        console.error(`Gagal membuat pose "${job.name}":`, err);
+                        updateCardWithError(`loader-${i}`, job, backgroundPrompt, outfitPrompt, err.message);
+                    }
+                })();
+            });
+            
+            await Promise.all(generationPromises);
+            
+            resultsContainer.querySelector('h2').textContent = "Hasil Pose Telah Siap!";
+            generateBtn.disabled = false;
+            generateBtn.querySelector('span').innerHTML = `<i data-lucide="sparkles" class="w-5 h-5 mr-2"></i> Buat 9 Pose Lagi`;
+            lucide.createIcons();
+        }
+
+        async function generateImageWithNanoBanana(modelBase64Data, modelMimeType, posePrompt, backgroundPrompt, outfitChangePrompt) {
+            const apiKey = ""; 
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
+
+            const clothingInstruction = outfitChangePrompt
+                ? `Change the subject's clothing to fit the theme: '${outfitChangePrompt}'. Preserve the subject's original facial features.`
+                : `Preserve the subject's original features (face, clothing).`;
+
+            const fullPrompt = `Your task is to create a seamless, photorealistic composite. Take the subject from the provided image. Change the subject's pose to: '${posePrompt}'. Now, place this modified subject into a newly generated background described as: '${backgroundPrompt}'. Realistically scale and position the subject to fit the perspective and depth of the background scene. Intelligently adjust the lighting, highlights, and color grading on the subject to perfectly match the environment. Generate a soft, realistic shadow cast by the subject onto the background, consistent with the scene's light sources. ${clothingInstruction} The final output must be a single, cohesive image, indistinguishable from a real photograph. Output only the final image.`;
+            
+            const payload = {
+                contents: [{ 
+                    parts: [
+                        { text: fullPrompt },
+                        { inlineData: { mimeType: modelMimeType, data: modelBase64Data } }
+                    ] 
+                }],
+                generationConfig: {
+                    responseModalities: ['IMAGE']
+                },
+            };
+            
+            let response;
+            let attempts = 0;
+            const maxAttempts = 5;
+            while (attempts < maxAttempts) {
+                try {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) break;
+                    if (response.status !== 429 && response.status < 500) {
+                         const errorBody = await response.json();
+                         throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorBody.error?.message || 'Unknown client error'}`);
+                    }
+                } catch (error) {
+                    if(attempts + 1 >= maxAttempts) throw error;
+                }
+                attempts++;
+                const delay = Math.pow(2, attempts) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+
+            if (!response || !response.ok) {
+                const errorBody = response ? await response.json().catch(() => ({})) : {};
+                throw new Error(`API Error after retries: ${response?.status || 'No Response'} ${response?.statusText || ''} - ${errorBody.error?.message || 'Gagal menghubungi server'}`);
+            }
+
+            const result = await response.json();
+            const candidate = result.candidates?.[0];
+
+            if (!candidate) {
+                console.error("API Response without candidates:", JSON.stringify(result, null, 2));
+                if (result.promptFeedback && result.promptFeedback.blockReason) {
+                    throw new Error(`Generasi diblokir: ${result.promptFeedback.blockReason}.`);
+                }
+                throw new Error("API tidak memberikan hasil. Respons kosong.");
+            }
+
+            const base64Data = candidate.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+            if (!base64Data) {
+                console.error("API Response without image data:", JSON.stringify(result, null, 2));
+                if (candidate.finishReason && candidate.finishReason !== "STOP") {
+                    throw new Error(`Generasi gagal: ${candidate.finishReason}.`);
+                }
+                throw new Error("Tidak ada data gambar yang diterima dari API.");
+            }
+            return base64Data;
+        }
+        
+        // --- UI Helper Functions ---
+        
+        function createCard(id, job, backgroundPrompt, outfitChangePrompt) {
+            const card = document.createElement('div');
+            card.id = id;
+            card.className = "bg-slate-700/50 rounded-lg overflow-hidden border border-slate-700 transition-all";
+            card.setAttribute('data-job-name', job.name);
+            card.setAttribute('data-job-prompt', job.prompt);
+            card.setAttribute('data-camera-angle', job.cameraAngleName);
+            card.setAttribute('data-background-prompt', backgroundPrompt);
+            if(outfitChangePrompt) {
+                card.setAttribute('data-outfit-prompt', outfitChangePrompt);
+            }
+            return card;
+        }
+
+        function updateCardWithResult(cardId, imageUrl, job, backgroundPrompt) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            
+            const jobName = job.name;
+            card.innerHTML = `
+                <div class="relative group">
+                    <img src="${imageUrl}" alt="Generated ${jobName}" class="w-full h-auto object-cover aspect-[3/4]">
+                    <div class="absolute inset-0 bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="flex flex-col sm:flex-row items-center gap-2">
+                             <a href="${imageUrl}" download="${jobName.replace(/\s/g, '_')}.png" class="inline-flex items-center justify-center w-full sm:w-auto bg-indigo-600 text-white text-sm font-semibold py-2 px-3 rounded-md hover:bg-indigo-500 transition-colors">
+                                <i data-lucide="download" class="w-4 h-4 mr-1.5"></i>
+                                <span>Unduh</span>
+                            </a>
+                            <button onclick="copyI2VPrompt(this)" class="i2v-btn inline-flex items-center justify-center w-full sm:w-auto bg-purple-600 text-white text-sm font-semibold py-2 px-3 rounded-md hover:bg-purple-500 transition-colors">
+                                <i data-lucide="clipboard-copy" class="w-4 h-4 mr-1.5"></i>
+                                <span>Salin Prompt I2V</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-3 text-center">
+                    <p class="text-sm font-semibold text-slate-300 truncate" title="${jobName}">${jobName}</p>
+                </div>`;
+            lucide.createIcons();
+        }
+
+        function updateCardWithError(cardId, job, backgroundPrompt, outfitPrompt, errorMessage) {
+             const card = document.getElementById(cardId);
+             if (!card) return;
+             card.classList.remove('border-slate-700');
+             card.classList.add('border-red-700');
+
+             card.innerHTML = `
+                <div class="w-full aspect-[3/4] flex flex-col items-center justify-center bg-red-900/30 text-red-300 p-4 text-center">
+                     <i data-lucide="alert-triangle" class="w-10 h-10 mb-2"></i>
+                     <p class="text-sm font-semibold">Gagal Membuat</p>
+                     <p class="text-xs text-red-400 mt-1" title="${errorMessage}">${job.name}</p>
+                </div>
+                <div class="p-3 text-center bg-slate-800">
+                    <button onclick='retryGenerationForCard("${cardId}")' class="inline-flex items-center bg-yellow-600 text-white text-xs font-semibold py-1.5 px-3 rounded-md hover:bg-yellow-500 transition-colors">
+                        <i data-lucide="rotate-cw" class="w-3 h-3 mr-1.5"></i>
+                        Ulangi
+                    </button>
+                </div>
+                `;
+            lucide.createIcons();
+        }
+
+        async function retryGenerationForCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card || !uploadedFileAsDataUrl) {
+                showError("Tidak bisa mencoba lagi: gambar model asli tidak ditemukan.");
+                return;
+            }
+            const job = {
+                name: card.dataset.jobName,
+                prompt: card.dataset.jobPrompt,
+                cameraAngleName: card.dataset.cameraAngle
+            };
+            const backgroundPrompt = card.dataset.backgroundPrompt;
+            const outfitPrompt = card.dataset.outfitPrompt || null;
+
+            card.classList.remove('border-red-700');
+            card.classList.add('border-slate-700');
+            card.innerHTML = `
+                <div class="w-full aspect-[3/4] flex items-center justify-center bg-slate-700/50">
+                    <div class="loader card-loader"></div>
+                </div>
+                <div class="p-3 text-center">
+                    <p class="text-sm font-semibold text-slate-300">${job.name}</p>
+                    <p class="text-xs text-slate-400">Mencoba lagi...</p>
+                </div>`;
+            
+            try {
+                const modelBase64Data = uploadedFileAsDataUrl.split(',')[1];
+                const modelMimeType = uploadedFileAsDataUrl.split(',')[0].split(':')[1].split(';')[0];
+                
+                const generatedImageBase64 = await generateImageWithNanoBanana(modelBase64Data, modelMimeType, job.prompt, backgroundPrompt, outfitPrompt);
+                const imageUrl = `data:image/png;base64,${generatedImageBase64}`;
+                
+                updateCardWithResult(cardId, imageUrl, job, backgroundPrompt);
+            } catch (err) {
+                console.error(`Gagal mencoba ulang pose "${job.name}":`, err);
+                updateCardWithError(cardId, job, backgroundPrompt, outfitPrompt, err.message);
+            }
+        }
+        
+        function generateVeoPrompt(card) {
+            const jobName = card.dataset.jobName;
+            const cameraAngle = card.dataset.cameraAngle;
+            const backgroundPrompt = card.dataset.backgroundPrompt;
+
+            let cameraMovement = "";
+            switch (cameraAngle) {
+                case 'Full Body': cameraMovement = 'A slow, elegant dolly-in towards the subject, creating a subtle sense of focus.'; break;
+                case 'Medium Close Up': cameraMovement = 'A very subtle zoom-in, barely perceptible, drawing attention to the subject\'s expression.'; break;
+                case 'High Angle': cameraMovement = 'A slow, cinematic crane shot moving downwards, revealing more of the subject and their surroundings.'; break;
+                case 'Worm Eye View': case 'Extreme Low Angle': cameraMovement = 'A dramatic, slow tilt upwards, emphasizing the subject\'s powerful presence.'; break;
+                case 'Dutch Angle': cameraMovement = 'The camera slowly rotates back to a level horizon, creating a sense of resolution or stability.'; break;
+                case 'Side Profile': cameraMovement = 'A gentle pan, following the subject\'s gaze as they slowly turn their head towards the camera.'; break;
+                case 'Eye Level': cameraMovement = 'A smooth tracking shot, moving parallel to the subject as if walking alongside them.'; break;
+                case '3/4 View': cameraMovement = 'A gentle arc shot, with the camera slowly orbiting the subject to reveal more dimension.'; break;
+                case 'From Back': case 'Over The Shoulder': cameraMovement = 'The camera slowly pans around the subject to reveal their face and expression, creating a sense of discovery.'; break;
+                case 'Bird\'s-Eye View': cameraMovement = 'A static, god-like perspective, with subtle movements happening in the environment below.'; break;
+                case 'Slight Overhead': cameraMovement = 'A gentle tilt down, as if the viewer is looking down at the subject with a sense of connection.'; break;
+                default: cameraMovement = 'The scene comes alive with subtle, natural movements.';
+            }
+
+            let atmosphericEffect = "";
+            if (backgroundPrompt.includes('nature') || backgroundPrompt.includes('garden') || backgroundPrompt.includes('meadow') || backgroundPrompt.includes('forest')) {
+                atmosphericEffect = 'A gentle breeze rustles the leaves and subtly moves the subject\'s hair. Sunlight filters through the trees, creating a beautiful light-play.';
+            } else if (backgroundPrompt.includes('yacht') || backgroundPrompt.includes('jet') || backgroundPrompt.includes('limousine')) {
+                atmosphericEffect = 'Subtle lens flares glint off metallic surfaces. The lighting is pristine and luxurious.';
+            } else if (backgroundPrompt.includes('sci-fi') || backgroundPrompt.includes('spaceship')) {
+                atmosphericEffect = 'Holographic displays flicker nearby. A faint, ambient electronic hum is audible. Lens flare from a distant star drifts across the frame.';
+            } else if (backgroundPrompt.includes('fantasy') || backgroundPrompt.includes('palace') || backgroundPrompt.includes('enchanted')) {
+                atmosphericEffect = 'Ethereal light particles float gently in the air. A soft, magical glow emanates from the background.';
+            } else if (backgroundPrompt.includes('café') || backgroundPrompt.includes('urban')) {
+                atmosphericEffect = 'The background shows soft, out-of-focus (bokeh) city lights. Steam gently rises from a coffee cup on a nearby table.';
+            }
+            
+            const subjectAction = "The subject, initially holding their pose, makes a subtle movement—perhaps a slow blink, a slight, knowing smile, or a gentle shift in their gaze towards the camera.";
+
+            return `Animate this image. The scene is: ${backgroundPrompt}. The subject is in a '${jobName}'. ${cameraMovement} ${subjectAction} ${atmosphericEffect} The overall mood is sophisticated and professional. Cinematic, photorealistic, 4K, hyper-detailed, slow motion.`;
+        }
+
+        function copyI2VPrompt(button) {
+            const card = button.closest('.bg-slate-700\\/50');
+            const promptText = generateVeoPrompt(card);
+            
+            const textArea = document.createElement("textarea");
+            textArea.value = promptText;
+            textArea.style.top = "0";
+            textArea.style.left = "0";
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    const originalHTML = button.innerHTML;
+                    button.innerHTML = `
+                        <i data-lucide="check-circle" class="w-4 h-4 mr-1.5"></i>
+                        <span>Disalin!</span>
+                    `;
+                    lucide.createIcons();
+                    
+                    setTimeout(() => {
+                        button.innerHTML = originalHTML;
+                        lucide.createIcons();
+                    }, 2000);
+                } else {
+                    showError('Gagal menyalin prompt.');
+                }
+            } catch (err) {
+                console.error('Gagal menyalin prompt: ', err);
+                showError('Gagal menyalin prompt ke clipboard.');
+            }
+
+            document.body.removeChild(textArea);
+        }
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>
+
+
+
+
