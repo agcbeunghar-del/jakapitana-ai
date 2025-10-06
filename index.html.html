@@ -1,0 +1,33 @@
+<!-- index.html (disingkat di sini) -->
+...
+<script>
+async function generateImageWithNanoBanana(modelBase64Data, modelMimeType, posePrompt, backgroundPrompt, outfitChangePrompt) {
+  const clothingInstruction = outfitChangePrompt
+    ? `Change the subject's clothing to fit the theme: '${outfitChangePrompt}'. Preserve the subject's original facial features.`
+    : `Preserve the subject's original features (face, clothing).`;
+
+  const fullPrompt = `Your task is to create a seamless, photorealistic composite. Take the subject from the provided image. Change the subject's pose to: '${posePrompt}'. Now, place this modified subject into a newly generated background described as: '${backgroundPrompt}'. Realistically scale and position the subject to fit the perspective and depth of the background scene. Intelligently adjust the lighting, highlights, and color grading on the subject to perfectly match the environment. Generate a soft, realistic shadow cast by the subject onto the background, consistent with the scene's light sources. ${clothingInstruction} The final output must be a single, cohesive image, indistinguishable from a real photograph. Output only the final image.`;
+
+  const apiUrl = "/api/generate";
+
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      modelBase64Data,
+      modelMimeType,
+      fullPrompt
+    }),
+  });
+
+  if (!response.ok) throw new Error(`Gagal memproses gambar: ${response.statusText}`);
+  
+  const result = await response.json();
+  const candidate = result.candidates?.[0];
+  const base64Data = candidate?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+  if (!base64Data) throw new Error("Tidak ada data gambar dari API.");
+  return base64Data;
+}
+</script>
+...
