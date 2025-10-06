@@ -241,6 +241,7 @@
     <script>
         // DOM Elements
         const uploadArea = document.getElementById('uploadArea');
+		const apiUrl = "/api/generate";
         const imageUpload = document.getElementById('imageUpload');
         const previewContainer = document.getElementById('previewContainer');
         const imagePreview = document.getElementById('imagePreview');
@@ -615,8 +616,7 @@
 
         async function generateImageWithNanoBanana(modelBase64Data, modelMimeType, posePrompt, backgroundPrompt, outfitChangePrompt) {
             const apiKey = ""; 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image-preview:generateContent?key=${apiKey}`;
-
+            const apiUrl = "/api/generate";
             const clothingInstruction = outfitChangePrompt
                 ? `Change the subject's clothing to fit the theme: '${outfitChangePrompt}'. Preserve the subject's original facial features.`
                 : `Preserve the subject's original features (face, clothing).`;
